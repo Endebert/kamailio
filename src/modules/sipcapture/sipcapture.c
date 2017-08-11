@@ -367,7 +367,7 @@ static param_export_t params[] = {
 	{"insert_retries",   		INT_PARAM, &insert_retries },
 	{"insert_retry_timeout",	INT_PARAM, &insert_retry_timeout },
 	{"table_time_sufix",		PARAM_STR, &table_time_sufix },
-	{"topoh_unamsk",		PARAM_INT, &sc_topoh_unmask },
+	{"topoh_unmask",		PARAM_INT, &sc_topoh_unmask },
 	{"nonsip_hook",			PARAM_INT, &nonsip_hook },
 	{0, 0, 0}
 };
@@ -446,6 +446,7 @@ int parse_table_names (str table_name, str ** table_names){
 	names = (str*)pkg_malloc(sizeof(str) * no_tables);
 	if(names == NULL) {
 		LM_ERR("no more pkg memory left\n");
+		pkg_free(table_name_cpy);
 		return -1;
 	}
 	p = strtok (table_name_cpy,"| \t");
@@ -1887,7 +1888,7 @@ static int sip_capture(struct sip_msg *msg, str *_table, _capture_mode_data_t * 
 	else { EMPTY_STR(sco.custom1); }
 	
 	/* Custom - field2 */
-	if(custom_field3_header.len > 0 && (tmphdr[5] = get_hdr_by_name(msg,custom_field2_header.s, custom_field2_header.len)) != NULL) {
+	if(custom_field2_header.len > 0 && (tmphdr[5] = get_hdr_by_name(msg,custom_field2_header.s, custom_field2_header.len)) != NULL) {
 		sco.custom2 =  tmphdr[5]->body;
 	}
 	else { EMPTY_STR(sco.custom2); }

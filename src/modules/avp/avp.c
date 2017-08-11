@@ -60,7 +60,7 @@ MODULE_VERSION
 #define VAL_TYPE_INT (1<<0)
 #define VAL_TYPE_STR (1<<1)
 
-struct hdr_name {
+typedef struct hdr_name {
 	enum {hdrId, hdrStr} kind;
 	union {
 		int n;
@@ -69,7 +69,7 @@ struct hdr_name {
 	char field_delimiter;
 	char array_delimiter;
 	int val_types;
-};
+} hdr_name_t;
 
 static int xlbuf_size=256;
 static char* xlbuf=NULL;
@@ -1379,45 +1379,15 @@ static int attr_hdr_body2attrs2(struct sip_msg* msg, char* header_, char* prefix
 static int attr_hdr_body2attrs_fixup(void **param, int param_no)
 {
 	char *c, *params;
-	struct hdr_name *h;
+	hdr_name_t *h;
 	int n;
 	str *s;
 	if(param_no == 1) {
 		c = *param;
 		if(*c == '#') {
-			c++;
-			n = strtol(c, &params, 10);
-			switch(*params) {
-				case PARAM_DELIM:
-					break;
-				case 0:
-					params = 0;
-					break;
-				default:
-					LOG(L_ERR, "attr_hdr_body2attrs_fixup: bad AVP value\n");
-					return E_CFG;
-			}
-			switch(n) {
-				//				case HDR_xxx:
-				//				case HDR_xxx:
-				//					break;
-				default:
-					LOG(L_ERR, "attr_hdr_body2attrs_fixup: header name is not "
-							"valid and supported HDR_xxx id '%s' resolved "
-							"as %d\n",
-							c, n);
-					return E_CFG;
-			}
-			h = pkg_malloc(sizeof(*h));
-			if(!h) {
-				LOG(L_ERR, "attr_hdr_body2attrs_fixup: out of memory\n");
-				return E_OUT_OF_MEM;
-			}
-
-			h->kind = HDR_ID;
-			h->name.n = n;
-			pkg_free(*param);
-
+			LOG(L_ERR, "attr_hdr_body2attrs_fixup: header name is not "
+						"valid '%s'\n", c);
+			return E_CFG;
 		} else {
 			params = strchr(c, PARAM_DELIM);
 			if(params)
@@ -1428,14 +1398,14 @@ static int attr_hdr_body2attrs_fixup(void **param, int param_no)
 				LOG(L_ERR, "attr_hdr_body2attrs_fixup: header name is empty\n");
 				return E_CFG;
 			}
-			h = pkg_malloc(sizeof(*h) + n + 1);
+			h = pkg_malloc(sizeof(hdr_name_t) + n + 1);
 			if(!h) {
 				LOG(L_ERR, "attr_hdr_body2attrs_fixup: out of memory\n");
 				return E_OUT_OF_MEM;
 			}
 			h->kind = HDR_STR;
 			h->name.s.len = n;
-			h->name.s.s = (char *)h + sizeof(*h);
+			h->name.s.s = (char *)h + sizeof(hdr_name_t);
 			memcpy(h->name.s.s, c, n + 1);
 		}
 		if(params) {
@@ -1478,13 +1448,13 @@ static int attr_hdr_body2attrs_fixup(void **param, int param_no)
 		if(n == 0) {
 			s = NULL;
 		} else {
-			s = pkg_malloc(sizeof(*s) + n + 1);
+			s = pkg_malloc(sizeof(str) + n + 1);
 			if(!s) {
 				LOG(L_ERR, "attr_hdr_body2attrs_fixup: out of memory\n");
 				return E_OUT_OF_MEM;
 			}
 			s->len = n;
-			s->s = (char *)s + sizeof(*s);
+			s->s = (char *)s + sizeof(str);
 			memcpy(s->s, *param, n + 1);
 		}
 		pkg_free(*param);
@@ -1504,7 +1474,6 @@ static int attr_hdr_body2attrs2_fixup(void** param, int param_no)
 	}
 	return res;
 }
-
 
 
 static int avpgroup_fixup(void** param, int param_no)
@@ -1579,7 +1548,6 @@ static int avpgroup_fixup(void** param, int param_no)
 	}
 	return 0;
 }
-
 
 
 static int select_attr_fixup(str* res, select_t* s, struct sip_msg* msg)

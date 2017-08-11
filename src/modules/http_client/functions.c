@@ -333,8 +333,8 @@ static int curL_query_url(struct sip_msg* _m, const char* _url, str* _dst,
 	/* HTTP_CODE CHANGED TO CURLINFO_RESPONSE_CODE in curl > 7.10.7 */
 	curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &stat);
 	if(res == CURLE_OK) {
-		char *ct;
-		char *url;
+		char *ct = NULL;
+		char *url = NULL;
 
 		/* ask for the content-type of the response */
 		res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
@@ -342,16 +342,16 @@ static int curL_query_url(struct sip_msg* _m, const char* _url, str* _dst,
 
 		if(ct) {
 			LM_DBG("We received Content-Type: %s\n", ct);
-			if (params->pconn) {
-				strncpy(params->pconn->result_content_type, ct,
-						sizeof(params->pconn->result_content_type));
+			if (params->pconn &&
+					strlen(ct)<sizeof(params->pconn->result_content_type)-1) {
+				strcpy(params->pconn->result_content_type, ct);
 			}
 		}
 		if(url) {
 			LM_DBG("We visited URL: %s\n", url);
-			if (params->pconn) {
-				strncpy(params->pconn->redirecturl, url ,
-						sizeof(params->pconn->redirecturl));
+			if (params->pconn
+					&& strlen(url)<sizeof(params->pconn->redirecturl)-1) {
+				strcpy(params->pconn->redirecturl, url);
 			}
 		}
 	}
@@ -464,12 +464,15 @@ int curl_get_redirect(struct sip_msg* _m, const str *connection, str* result)
 
 
 /*! Run a query based on a connection definition */
-int curl_con_query_url_f(struct sip_msg* _m, const str *connection, const str* url, str* result, const char *contenttype, const str* post, int failover)
+int curl_con_query_url_f(struct sip_msg* _m, const str *connection,
+			const str* url, str* result, const char *contenttype,
+			const str* post, int failover)
 {
 	curl_con_t *conn = NULL;
 	curl_con_pkg_t *pconn = NULL;
 	char *urlbuf = NULL;
 	char *postdata = NULL;
+	char *failovercon = NULL;
 	curl_query_t query_params;
 
 	unsigned int maxdatasize = default_maxdatasize;
@@ -494,7 +497,6 @@ int curl_con_query_url_f(struct sip_msg* _m, const str *connection, const str* u
 
 	LM_DBG("******** CURL Connection found %.*s\n", connection->len, connection->s);
 	maxdatasize = conn->maxdatasize;
-
 
 	if (url && (url->len > 0) && (url->s != NULL)) {
 		int url_len = conn->schema.len + 3 + conn->url.len + 1 + url->len + 1;
@@ -552,7 +554,10 @@ int curl_con_query_url_f(struct sip_msg* _m, const str *connection, const str* u
 	query_params.oneline = 0;
 	query_params.maxdatasize = maxdatasize;
 	query_params.http_proxy_port = conn->http_proxy_port;
-	query_params.failovercon = conn->failover.s ? as_asciiz(&conn->failover) : NULL;
+	if(conn->failover.s) {
+		failovercon = as_asciiz(&conn->failover);
+	}
+	query_params.failovercon = failovercon;
 	query_params.pconn = pconn;
 	if (conn->http_proxy) {
 		query_params.http_proxy = conn->http_proxy;
@@ -567,14 +572,19 @@ int curl_con_query_url_f(struct sip_msg* _m, const str *connection, const str* u
 		int counter = failover + 1;
 		if (counter >= 2) {
 			LM_DBG("**** No more failovers - returning failure\n");
-			return (res - 1000);
+			res = (res - 1000);
+			goto error;
 		}
 		/* Time for failover */
-		return curl_con_query_url_f(_m, &conn->failover, url, result, contenttype, post, counter);
+		res = curl_con_query_url_f(_m, &conn->failover, url, result,
+				contenttype, post, counter);
 	}
 
-	LM_DBG("***** #### ***** CURL DONE : %s \n", urlbuf);
+	LM_DBG("***** #### ***** CURL DONE: %s (%d)\n", urlbuf, res);
 error:
+	if (failovercon != NULL) {
+		pkg_free(failovercon);
+	}
 	if (urlbuf != NULL) {
 		pkg_free(urlbuf);
 	}
